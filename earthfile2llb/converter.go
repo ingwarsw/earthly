@@ -92,6 +92,7 @@ type Converter struct {
 	ftrs                *features.Features
 	localWorkingDir     string
 	containerFrontend   containerutil.ContainerFrontend
+	waitBlockStack      []*waitBlock
 }
 
 // NewConverter constructs a new converter for a given earthly target.
@@ -126,6 +127,7 @@ func NewConverter(ctx context.Context, target domain.Target, bc *buildcontext.Da
 		ftrs:                bc.Features,
 		localWorkingDir:     filepath.Dir(bc.BuildFilePath),
 		containerFrontend:   opt.ContainerFrontend,
+		waitBlockStack:      []*waitBlock{opt.waitBlock},
 	}, nil
 }
 
@@ -540,7 +542,12 @@ func (c *Converter) Run(ctx context.Context, opts ConvertRunOpts) error {
 	for _, cache := range c.persistentCacheDirs {
 		opts.extraRunOpts = append(opts.extraRunOpts, cache)
 	}
-	_, err = c.internalRun(ctx, opts)
+	state, err := c.internalRun(ctx, opts)
+
+	if c.ftrs.WaitBlock {
+		c.waitBlock().addCommand(&state, c)
+	}
+
 	return err
 }
 
@@ -893,6 +900,31 @@ func (c *Converter) SaveArtifactFromLocal(ctx context.Context, saveFrom, saveTo 
 	return nil
 }
 
+func (c *Converter) waitBlock() *waitBlock {
+	n := len(c.waitBlockStack)
+	if n == 0 {
+		panic("waitBlock() called on empty stack") // shouldn't happen
+	}
+	return c.waitBlockStack[n-1]
+}
+
+func (c *Converter) pushWaitBlock(ctx context.Context) error {
+	c.waitBlockStack = append(c.waitBlockStack, newWaitBlock())
+	return nil
+}
+
+func (c *Converter) popWaitBlock(ctx context.Context) error {
+	n := len(c.waitBlockStack)
+	if n == 0 {
+		return fmt.Errorf("waitBlockStack is empty") // shouldn't happen
+	}
+	i := n - 1
+	waitBlock := c.waitBlockStack[i]
+	c.waitBlockStack = c.waitBlockStack[:i]
+
+	return waitBlock.wait(ctx)
+}
+
 // SaveImage applies the earthly SAVE IMAGE command.
 func (c *Converter) SaveImage(ctx context.Context, imageNames []string, pushImages bool, insecurePush bool, cacheHint bool, cacheFrom []string, noManifestList bool) error {
 	err := c.checkAllowed(saveImageCmd)
@@ -912,6 +944,9 @@ func (c *Converter) SaveImage(ctx context.Context, imageNames []string, pushImag
 	}
 	for _, imageName := range imageNames {
 		if c.mts.Final.RunPush.HasState {
+			if c.ftrs.WaitBlock {
+				panic("RunPush.HasState should never be true when --wait-block is used")
+			}
 			// pcState persists any files that may be cached via CACHE command.
 			pcState := c.persistCache(c.mts.Final.RunPush.State)
 			// SAVE IMAGE --push when it comes before any RUN --push should be treated as if they are in the main state,
@@ -930,20 +965,27 @@ func (c *Converter) SaveImage(ctx context.Context, imageNames []string, pushImag
 					NoManifestList:      noManifestList,
 				})
 		} else {
-			pcState := c.persistCache(c.mts.Final.MainState)
-			c.mts.Final.SaveImages = append(c.mts.Final.SaveImages,
-				states.SaveImage{
-					State:               pcState,
-					Image:               c.mts.Final.MainImage.Clone(),
-					DockerTag:           imageName,
-					Push:                pushImages,
-					InsecurePush:        insecurePush,
-					CacheHint:           cacheHint,
-					HasPushDependencies: false,
-					ForceSave:           c.opt.ForceSaveImage,
-					CheckDuplicate:      c.ftrs.CheckDuplicateImages,
-					NoManifestList:      noManifestList,
-				})
+			si := states.SaveImage{
+				State:               c.persistCache(c.mts.Final.MainState),
+				Image:               c.mts.Final.MainImage.Clone(),
+				DockerTag:           imageName,
+				Push:                pushImages,
+				InsecurePush:        insecurePush,
+				CacheHint:           cacheHint,
+				HasPushDependencies: false,
+				ForceSave:           c.opt.ForceSaveImage,
+				CheckDuplicate:      c.ftrs.CheckDuplicateImages,
+				NoManifestList:      noManifestList,
+				Platform:            c.platr.Materialize(c.platr.Current()),
+			}
+
+			if c.ftrs.WaitBlock {
+				shouldPush := pushImages && !c.mts.Final.Target.IsRemote() && si.DockerTag != "" && c.opt.DoSaves
+				c.waitBlock().addSaveImage(si, c, shouldPush)
+			} else {
+				c.mts.Final.SaveImages = append(c.mts.Final.SaveImages, si)
+			}
+
 		}
 
 		if pushImages && imageName != "" && c.opt.UseInlineCache {
@@ -1440,6 +1482,7 @@ func (c *Converter) prepBuildTarget(ctx context.Context, fullTargetName string, 
 	opt.PlatformResolver = c.platr.SubResolver(platform)
 	opt.HasDangling = isDangling
 	opt.AllowPrivileged = allowPrivileged
+	opt.waitBlock = c.waitBlock()
 	if c.opt.Features.ReferencedSaveOnly {
 		// DoSaves should only be potentially turned-off when the ReferencedSaveOnly feature is flipped
 		opt.DoSaves = (cmdT == buildCmd && c.opt.DoSaves)
@@ -1534,6 +1577,14 @@ func (c *Converter) internalRun(ctx context.Context, opts ConvertRunOpts) (pllb.
 	}
 	if opts.shellWrap == nil {
 		opts.shellWrap = withShellAndEnvVars
+	}
+
+	if c.ftrs.WaitBlock {
+		c.opt.Console.Warnf("WAIT/END code is super-experimental and incomplete -- it should currently be avoided")
+	}
+
+	if c.ftrs.WaitBlock && opts.Push {
+		return pllb.State{}, errors.New("RUN --push is not currently supported with --wait-block, you must rewrite it as IF ... RUN --no-cache END") // TODO this will be done automatically
 	}
 
 	finalArgs := opts.Args[:]

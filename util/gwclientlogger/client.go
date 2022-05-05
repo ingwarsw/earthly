@@ -30,6 +30,14 @@ func (vc *verboseClient) Solve(ctx context.Context, req gwclient.SolveRequest) (
 	return res, err
 }
 
+// SaveImage wraps gwclient.SaveImage
+func (vc *verboseClient) SaveImage(ctx context.Context, req gwclient.SaveImageRequest) error {
+	reqStr, _ := json.MarshalIndent(req, "", "\t")
+	err := vc.c.SaveImage(ctx, req)
+	fmt.Printf("SaveImage req=%s; err=%v\n", reqStr, err)
+	return err
+}
+
 // ResolveImageConfig wraps gwclient.ResolveImageConfig
 func (vc *verboseClient) ResolveImageConfig(ctx context.Context, ref string, opt llb.ResolveImageConfigOpt) (digest.Digest, []byte, error) {
 	s, _ := json.MarshalIndent(opt, "", "\t")

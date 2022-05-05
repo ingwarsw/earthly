@@ -267,7 +267,6 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 
 					refKey := fmt.Sprintf("image-%d", imageIndex)
 					refPrefix := fmt.Sprintf("ref/%s", refKey)
-					imageIndex++
 
 					localRegPullID := fmt.Sprintf("sess-%s/sp:img%d", gwClient.BuildOpts().SessionID, imageIndex)
 					localImages[localRegPullID] = saveImage.DockerTag
@@ -286,12 +285,12 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 						}
 					}
 					res.AddMeta(fmt.Sprintf("%s/%s", refPrefix, exptypes.ExporterImageConfigKey), config)
-					res.AddMeta(fmt.Sprintf("%s/image-index", refPrefix), []byte(fmt.Sprintf("%d", imageIndex)))
 					res.AddRef(refKey, ref)
+					imageIndex++
 				} else {
 					resolvedPlat := sts.PlatformResolver.Materialize(sts.PlatformResolver.Current())
 					platformStr := resolvedPlat.String()
-					platformImgName, err := platformSpecificImageName(saveImage.DockerTag, resolvedPlat)
+					platformImgName, err := llbutil.PlatformSpecificImageName(saveImage.DockerTag, resolvedPlat)
 					if err != nil {
 						return nil, err
 					}
@@ -312,7 +311,6 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 					if shouldPush {
 						refKey := fmt.Sprintf("image-%d", imageIndex)
 						refPrefix := fmt.Sprintf("ref/%s", refKey)
-						imageIndex++
 
 						res.AddMeta(fmt.Sprintf("%s/image.name", refPrefix), []byte(saveImage.DockerTag))
 						res.AddMeta(fmt.Sprintf("%s/platform", refPrefix), []byte(platformStr))
@@ -321,17 +319,16 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 							res.AddMeta(fmt.Sprintf("%s/insecure-push", refPrefix), []byte("true"))
 						}
 						res.AddMeta(fmt.Sprintf("%s/%s", refPrefix, exptypes.ExporterImageConfigKey), config)
-						res.AddMeta(fmt.Sprintf("%s/image-index", refPrefix), []byte(fmt.Sprintf("%d", imageIndex)))
 						res.AddRef(refKey, ref)
+						imageIndex++
 					}
 
 					// For local.
 					if shouldExport {
 						refKey := fmt.Sprintf("image-%d", imageIndex)
 						refPrefix := fmt.Sprintf("ref/%s", refKey)
-						imageIndex++
 
-						localRegPullID, err := platformSpecificImageName(
+						localRegPullID, err := llbutil.PlatformSpecificImageName(
 							fmt.Sprintf("sess-%s/mp:img%d", gwClient.BuildOpts().SessionID, imageIndex), resolvedPlat)
 						if err != nil {
 							return nil, err
@@ -342,10 +339,11 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 						} else {
 							res.AddMeta(fmt.Sprintf("%s/export-image", refPrefix), []byte("true"))
 						}
+
 						res.AddMeta(fmt.Sprintf("%s/image.name", refPrefix), []byte(platformImgName))
 						res.AddMeta(fmt.Sprintf("%s/%s", refPrefix, exptypes.ExporterImageConfigKey), config)
-						res.AddMeta(fmt.Sprintf("%s/image-index", refPrefix), []byte(fmt.Sprintf("%d", imageIndex)))
 						res.AddRef(refKey, ref)
+						imageIndex++
 						manifestLists[saveImage.DockerTag] = append(
 							manifestLists[saveImage.DockerTag], manifest{
 								imageName: platformImgName,
@@ -602,6 +600,7 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 		b.opt.Console.PrintPhaseHeader(PhaseOutput, opt.NoOutput, outputPhaseSpecial)
 	}
 	outputConsole.Flush()
+
 	for parentImageName, children := range manifestLists {
 		err = loadDockerManifest(ctx, b.opt.Console, b.opt.ContainerFrontend, parentImageName, children)
 		if err != nil {
