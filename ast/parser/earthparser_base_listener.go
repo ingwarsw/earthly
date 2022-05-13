@@ -201,6 +201,24 @@ func (s *BaseEarthParserListener) EnterWaitStmt(ctx *WaitStmtContext) {}
 // ExitWaitStmt is called when production waitStmt is exited.
 func (s *BaseEarthParserListener) ExitWaitStmt(ctx *WaitStmtContext) {}
 
+// EnterWaitClause is called when production waitClause is entered.
+func (s *BaseEarthParserListener) EnterWaitClause(ctx *WaitClauseContext) {}
+
+// ExitWaitClause is called when production waitClause is exited.
+func (s *BaseEarthParserListener) ExitWaitClause(ctx *WaitClauseContext) {}
+
+// EnterWaitBlock is called when production waitBlock is entered.
+func (s *BaseEarthParserListener) EnterWaitBlock(ctx *WaitBlockContext) {}
+
+// ExitWaitBlock is called when production waitBlock is exited.
+func (s *BaseEarthParserListener) ExitWaitBlock(ctx *WaitBlockContext) {}
+
+// EnterWaitExpr is called when production waitExpr is entered.
+func (s *BaseEarthParserListener) EnterWaitExpr(ctx *WaitExprContext) {}
+
+// ExitWaitExpr is called when production waitExpr is exited.
+func (s *BaseEarthParserListener) ExitWaitExpr(ctx *WaitExprContext) {}
+
 // EnterFromStmt is called when production fromStmt is entered.
 func (s *BaseEarthParserListener) EnterFromStmt(ctx *FromStmtContext) {}
 

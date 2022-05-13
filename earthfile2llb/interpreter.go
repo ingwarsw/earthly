@@ -134,6 +134,8 @@ func (i *Interpreter) handleBlockParallel(ctx context.Context, b spec.Block, sta
 			case "DOCKER":
 				// TODO
 			}
+		} else if stmt.Wait != nil {
+			// TODO
 		}
 	}
 	return nil
@@ -408,6 +410,10 @@ func (i *Interpreter) handleForArgs(ctx context.Context, forArgs []string, sl *s
 func (i *Interpreter) handleWait(ctx context.Context, waitStmt spec.WaitStatement) error {
 	if !i.converter.ftrs.WaitBlock {
 		return i.errorf(waitStmt.SourceLocation, "the WAIT command is not supported in this version")
+	}
+
+	if len(waitStmt.Args) != 0 {
+		return i.errorf(waitStmt.SourceLocation, "WAIT does not accept any options")
 	}
 
 	err := i.converter.pushWaitBlock(ctx)

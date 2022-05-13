@@ -90,7 +90,10 @@ forExpr: stmtWords;
 
 // waitStmt --------------------------------------------------------------------
 
-waitStmt: WAIT NL+ stmts? NL+ WS? END;
+waitStmt: waitClause NL+ WS? END;
+waitClause: WAIT (WS waitExpr)? (NL+ WS? waitBlock)?;
+waitBlock: stmts;
+waitExpr: stmtWords;
 
 // Regular commands -----------------------------------------------------------
 

@@ -542,12 +542,7 @@ func (c *Converter) Run(ctx context.Context, opts ConvertRunOpts) error {
 	for _, cache := range c.persistentCacheDirs {
 		opts.extraRunOpts = append(opts.extraRunOpts, cache)
 	}
-	state, err := c.internalRun(ctx, opts)
-
-	if c.ftrs.WaitBlock {
-		c.waitBlock().addCommand(&state, c)
-	}
-
+	_, err = c.internalRun(ctx, opts)
 	return err
 }
 
@@ -909,6 +904,7 @@ func (c *Converter) waitBlock() *waitBlock {
 }
 
 func (c *Converter) pushWaitBlock(ctx context.Context) error {
+	c.opt.Console.Warnf("WAIT/END code is super-experimental and incomplete -- it should currently be avoided")
 	c.waitBlockStack = append(c.waitBlockStack, newWaitBlock())
 	return nil
 }
@@ -918,6 +914,14 @@ func (c *Converter) popWaitBlock(ctx context.Context) error {
 	if n == 0 {
 		return fmt.Errorf("waitBlockStack is empty") // shouldn't happen
 	}
+
+	// TODO do we need to finalize the state somehow?
+	// we might also need it in finalize to handle WAIT BUILD +foo END
+	// TODO what about previously BUILD targets that were built via other code outside of the current WAIT/END block
+	if c.ftrs.WaitBlock {
+		c.waitBlock().addCommand(&c.mts.Final.MainState, c)
+	}
+
 	i := n - 1
 	waitBlock := c.waitBlockStack[i]
 	c.waitBlockStack = c.waitBlockStack[:i]
@@ -965,6 +969,7 @@ func (c *Converter) SaveImage(ctx context.Context, imageNames []string, pushImag
 					NoManifestList:      noManifestList,
 				})
 		} else {
+			//singlePlatform := sts.PlatformResolver.Current() == platutil.DefaultPlatform || noManifestList
 			si := states.SaveImage{
 				State:               c.persistCache(c.mts.Final.MainState),
 				Image:               c.mts.Final.MainImage.Clone(),
@@ -976,11 +981,16 @@ func (c *Converter) SaveImage(ctx context.Context, imageNames []string, pushImag
 				ForceSave:           c.opt.ForceSaveImage,
 				CheckDuplicate:      c.ftrs.CheckDuplicateImages,
 				NoManifestList:      noManifestList,
-				Platform:            c.platr.Materialize(c.platr.Current()),
+				Platform:            c.platr.Materialize(c.platr.Current()), // this should be a resolver -- never call Materialize as we need to know if it's a multi-platform, or NULL for single-platform
+				// should be PlatformResolver
+
+				// This might not work for the case of mixing null-platform and `--platform` values.
+				//singlePlatform: singlePlatform,
+				//Platform:
 			}
 
 			if c.ftrs.WaitBlock {
-				shouldPush := pushImages && !c.mts.Final.Target.IsRemote() && si.DockerTag != "" && c.opt.DoSaves
+				shouldPush := pushImages && si.DockerTag != "" && c.opt.DoSaves
 				c.waitBlock().addSaveImage(si, c, shouldPush)
 			} else {
 				c.mts.Final.SaveImages = append(c.mts.Final.SaveImages, si)
@@ -1577,10 +1587,6 @@ func (c *Converter) internalRun(ctx context.Context, opts ConvertRunOpts) (pllb.
 	}
 	if opts.shellWrap == nil {
 		opts.shellWrap = withShellAndEnvVars
-	}
-
-	if c.ftrs.WaitBlock {
-		c.opt.Console.Warnf("WAIT/END code is super-experimental and incomplete -- it should currently be avoided")
 	}
 
 	if c.ftrs.WaitBlock && opts.Push {

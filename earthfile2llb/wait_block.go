@@ -9,16 +9,18 @@ import (
 	"github.com/earthly/earthly/states"
 	"github.com/earthly/earthly/util/llbutil"
 	"github.com/earthly/earthly/util/llbutil/pllb"
+	"github.com/earthly/earthly/util/syncutil/serrgroup"
+
 	"github.com/moby/buildkit/exporter/containerimage/exptypes"
 	"github.com/moby/buildkit/frontend/gateway/client"
 	gwclient "github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/pkg/errors"
 )
 
-type saveImagesWaitItem struct {
-	converters []*Converter
-	images     []states.SaveImage
-	push       []bool
+type saveImageWaitItem struct {
+	c    *Converter
+	si   states.SaveImage
+	push bool
 }
 
 type runCommandWaitItem struct {
@@ -26,110 +28,8 @@ type runCommandWaitItem struct {
 	cmd *pllb.State
 }
 
+// waitItem should be either saveImageWaitItem or runCommandWaitItem
 type waitItem interface {
-	wait(context.Context) error
-}
-
-func (w *saveImagesWaitItem) wait(ctx context.Context) error {
-	isMultiPlatform := make(map[string]bool)    // DockerTag -> bool
-	noManifestListImgs := make(map[string]bool) // DockerTag -> bool
-	platformImgNames := make(map[string]bool)
-
-	for _, saveImage := range w.images {
-		if saveImage.NoManifestList {
-			noManifestListImgs[saveImage.DockerTag] = true
-		} else {
-			isMultiPlatform[saveImage.DockerTag] = true
-		}
-		if isMultiPlatform[saveImage.DockerTag] && noManifestListImgs[saveImage.DockerTag] {
-			return fmt.Errorf("cannot save image %s defined multiple times, but declared as SAVE IMAGE --no-manifest-list", saveImage.DockerTag)
-		}
-	}
-
-	metadata := map[string][]byte{}
-	refs := map[string]client.Reference{}
-
-	refID := 0
-	for imageIndex, saveImage := range w.images {
-		if !w.push[imageIndex] {
-			continue
-		}
-		c := w.converters[imageIndex]
-
-		ref, err := llbutil.StateToRef(
-			ctx, c.opt.GwClient, saveImage.State, c.opt.NoCache,
-			c.platr, c.opt.CacheImports.AsMap())
-		if err != nil {
-			return errors.Wrapf(err, "failed to solve image required for %s", saveImage.DockerTag)
-		}
-
-		config, err := json.Marshal(saveImage.Image)
-		if err != nil {
-			return errors.Wrapf(err, "marshal save image config")
-		}
-
-		refKey := fmt.Sprintf("image-%d", refID)
-		refPrefix := fmt.Sprintf("ref/%s", refKey)
-		refs[refKey] = ref
-
-		metadata[refPrefix+"/image.name"] = []byte(saveImage.DockerTag)
-		metadata[refPrefix+"/export-image-push"] = []byte("true")
-		if saveImage.InsecurePush {
-			metadata[refPrefix+"/insecure-push"] = []byte("true")
-		}
-		metadata[refPrefix+"/"+exptypes.ExporterImageConfigKey] = config
-		refID++
-
-		if isMultiPlatform[saveImage.DockerTag] {
-			platformStr := saveImage.Platform.String()
-			platformImgName, err := llbutil.PlatformSpecificImageName(saveImage.DockerTag, saveImage.Platform)
-			if err != nil {
-				return err
-			}
-
-			if saveImage.CheckDuplicate && saveImage.DockerTag != "" {
-				if _, found := platformImgNames[platformImgName]; found {
-					return errors.Errorf(
-						"image %s is defined multiple times for the same platform (%s)",
-						saveImage.DockerTag, platformImgName)
-				}
-				platformImgNames[platformImgName] = true
-			}
-
-			metadata[refPrefix+"/platform"] = []byte(platformStr)
-		}
-	}
-
-	if len(w.converters) == 0 {
-		panic("saveImagesWaitItem should never have been created with zero converters")
-	}
-	gatewayClient := w.converters[0].opt.GwClient // could be any converter's gwClient (they should app be the same)
-
-	err := gatewayClient.SaveImage(ctx, gwclient.SaveImageRequest{
-		Refs:     refs,
-		Metadata: metadata,
-	})
-	if err != nil {
-		return errors.Wrap(err, "failed to SAVE IMAGE")
-	}
-	return nil
-}
-
-func (w *runCommandWaitItem) wait(ctx context.Context) error {
-	state := *w.cmd
-	ref, err := llbutil.StateToRef(
-		ctx, w.c.opt.GwClient, state, w.c.opt.NoCache,
-		w.c.platr, w.c.opt.CacheImports.AsMap())
-	if err != nil {
-		return errors.Wrap(err, "waiting for RUN state to ref")
-	}
-
-	// wait for ref to be solved
-	_, err = ref.ReadDir(ctx, gwclient.ReadDirRequest{Path: "/"})
-	if err != nil {
-		return errors.Wrap(err, "waiting for RUN command to complete")
-	}
-	return nil
 }
 
 type waitBlock struct {
@@ -141,34 +41,15 @@ func newWaitBlock() *waitBlock {
 	return &waitBlock{}
 }
 
-func (wb *waitBlock) lastItemUnsafe() (waitItem, bool) {
-	n := len(wb.items)
-	if n > 0 {
-		return wb.items[n-1], true
-	}
-	return nil, false
-}
-
-func (wb *waitBlock) getOrCreateSaveImageWaitItemUnsafe() *saveImagesWaitItem {
-	var siwi *saveImagesWaitItem
-	item, ok := wb.lastItemUnsafe()
-	if ok {
-		siwi, ok = item.(*saveImagesWaitItem)
-	}
-	if !ok {
-		siwi = &saveImagesWaitItem{}
-		wb.items = append(wb.items, siwi)
-	}
-	return siwi
-}
-
 func (wb *waitBlock) addSaveImage(si states.SaveImage, c *Converter, push bool) {
 	wb.mu.Lock()
 	defer wb.mu.Unlock()
-	item := wb.getOrCreateSaveImageWaitItemUnsafe()
-	item.converters = append(item.converters, c)
-	item.images = append(item.images, si)
-	item.push = append(item.push, push)
+	item := saveImageWaitItem{
+		c:    c,
+		si:   si,
+		push: push,
+	}
+	wb.items = append(wb.items, &item)
 }
 
 func (wb *waitBlock) addCommand(cmd *pllb.State, c *Converter) {
@@ -184,11 +65,121 @@ func (wb *waitBlock) addCommand(cmd *pllb.State, c *Converter) {
 func (wb *waitBlock) wait(ctx context.Context) error {
 	wb.mu.Lock()
 	defer wb.mu.Unlock()
+
+	errGroup, ctx := serrgroup.WithContext(ctx)
+	errGroup.Go(func() error {
+		return wb.saveImages(ctx)
+	})
+	errGroup.Go(func() error {
+		return wb.waitCommands(ctx)
+	})
+	return errGroup.Wait()
+}
+
+func (wb *waitBlock) saveImages(ctx context.Context) error {
+	isMultiPlatform := make(map[string]bool)    // DockerTag -> bool
+	noManifestListImgs := make(map[string]bool) // DockerTag -> bool
+	platformImgNames := make(map[string]bool)
+
+	imageWaitItems := []*saveImageWaitItem{}
 	for _, item := range wb.items {
-		err := item.wait(ctx)
+		saveImage, ok := item.(*saveImageWaitItem)
+		if !ok {
+			continue
+		}
+		if saveImage.si.NoManifestList {
+			noManifestListImgs[saveImage.si.DockerTag] = true
+		} else {
+			isMultiPlatform[saveImage.si.DockerTag] = true // do I need to count for previsouly seen?
+		}
+		if isMultiPlatform[saveImage.si.DockerTag] && noManifestListImgs[saveImage.si.DockerTag] {
+			return fmt.Errorf("cannot save image %s defined multiple times, but declared as SAVE IMAGE --no-manifest-list", saveImage.si.DockerTag)
+		}
+		imageWaitItems = append(imageWaitItems, saveImage)
+	}
+	if len(imageWaitItems) == 0 {
+		return nil
+	}
+
+	metadata := map[string][]byte{}
+	refs := map[string]client.Reference{}
+
+	refID := 0
+	for _, item := range imageWaitItems {
+		if !item.push {
+			continue
+		}
+
+		ref, err := llbutil.StateToRef(
+			ctx, item.c.opt.GwClient, item.si.State, item.c.opt.NoCache,
+			item.c.platr, item.c.opt.CacheImports.AsMap())
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "failed to solve image required for %s", item.si.DockerTag)
+		}
+
+		config, err := json.Marshal(item.si.Image)
+		if err != nil {
+			return errors.Wrapf(err, "marshal save image config")
+		}
+
+		refKey := fmt.Sprintf("image-%d", refID)
+		refPrefix := fmt.Sprintf("ref/%s", refKey)
+		refs[refKey] = ref
+
+		metadata[refPrefix+"/image.name"] = []byte(item.si.DockerTag)
+		metadata[refPrefix+"/export-image-push"] = []byte("true")
+		if item.si.InsecurePush {
+			metadata[refPrefix+"/insecure-push"] = []byte("true")
+		}
+		metadata[refPrefix+"/"+exptypes.ExporterImageConfigKey] = config
+		refID++
+
+		if isMultiPlatform[item.si.DockerTag] {
+			platformStr := item.si.Platform.String()
+			platformImgName, err := llbutil.PlatformSpecificImageName(item.si.DockerTag, item.si.Platform)
+			if err != nil {
+				return err
+			}
+
+			if item.si.CheckDuplicate && item.si.DockerTag != "" {
+				if _, found := platformImgNames[platformImgName]; found {
+					return errors.Errorf(
+						"image %s is defined multiple times for the same platform (%s)",
+						item.si.DockerTag, platformImgName)
+				}
+				platformImgNames[platformImgName] = true
+			}
+
+			metadata[refPrefix+"/platform"] = []byte(platformStr)
 		}
 	}
+
+	if len(imageWaitItems) == 0 {
+		panic("saveImagesWaitItem should never have been created with zero converters")
+	}
+	gatewayClient := imageWaitItems[0].c.opt.GwClient // could be any converter's gwClient (they should app be the same)
+
+	err := gatewayClient.Export(ctx, gwclient.ExportRequest{
+		Refs:     refs,
+		Metadata: metadata,
+	})
+	if err != nil {
+		return errors.Wrap(err, "failed to SAVE IMAGE")
+	}
 	return nil
+}
+
+func (wb *waitBlock) waitCommands(ctx context.Context) error {
+	errGroup, ctx := serrgroup.WithContext(ctx)
+
+	for _, item := range wb.items {
+		cmdItem, ok := item.(*runCommandWaitItem)
+		if !ok {
+			continue
+		}
+		errGroup.Go(func() error {
+			return cmdItem.c.forceExecution(ctx, *cmdItem.cmd, cmdItem.c.platr)
+		})
+	}
+	return errGroup.Wait()
 }

@@ -489,6 +489,7 @@ func (l *listener) ExitForBlock(c *parser.ForBlockContext) {
 // Wait -----------------------------------------------------------------------
 
 func (l *listener) EnterWaitStmt(c *parser.WaitStmtContext) {
+
 	l.block().waitStatement = new(spec.WaitStatement)
 	if l.enableSourceMap {
 		l.block().waitStatement.SourceLocation = &spec.SourceLocation{
@@ -499,13 +500,28 @@ func (l *listener) EnterWaitStmt(c *parser.WaitStmtContext) {
 			EndColumn:   c.GetStop().GetColumn(),
 		}
 	}
-	l.pushNewBlock()
 }
 
 func (l *listener) ExitWaitStmt(c *parser.WaitStmtContext) {
+	l.block().statement.Wait = l.block().waitStatement
+	l.block().waitStatement = nil
+}
+
+func (l *listener) EnterWaitExpr(c *parser.WaitExprContext) {
+	l.stmtWords = []string{}
+}
+
+func (l *listener) ExitWaitExpr(c *parser.WaitExprContext) {
+	l.block().waitStatement.Args = l.stmtWords
+}
+
+func (l *listener) EnterWaitBlock(c *parser.WaitBlockContext) {
+	l.pushNewBlock()
+}
+
+func (l *listener) ExitWaitBlock(c *parser.WaitBlockContext) {
 	waitBlock := l.popBlock()
 	l.block().waitStatement.Body = waitBlock
-	l.block().statement.Wait = l.block().waitStatement
 }
 
 // EnvArgKey, EnvArgValue, LabelKey, LabelValue -------------------------------
