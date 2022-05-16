@@ -77,8 +77,8 @@ func (wb *waitBlock) wait(ctx context.Context) error {
 }
 
 func (wb *waitBlock) saveImages(ctx context.Context) error {
-	isMultiPlatform := make(map[string]bool)    // DockerTag -> bool
-	noManifestListImgs := make(map[string]bool) // DockerTag -> bool
+	isMultiPlatform := make(map[string]bool)        // DockerTag -> bool
+	noManifestListImgs := make(map[string]struct{}) // set based on DockerTag
 	platformImgNames := make(map[string]bool)
 
 	imageWaitItems := []*saveImageWaitItem{}
@@ -87,13 +87,29 @@ func (wb *waitBlock) saveImages(ctx context.Context) error {
 		if !ok {
 			continue
 		}
-		if saveImage.si.NoManifestList {
-			noManifestListImgs[saveImage.si.DockerTag] = true
-		} else {
-			isMultiPlatform[saveImage.si.DockerTag] = true // do I need to count for previsouly seen?
+
+		if hasPlatform, ok := isMultiPlatform[saveImage.si.DockerTag]; ok {
+			if saveImage.si.HasPlatform != hasPlatform {
+				return fmt.Errorf("SAVE IMAGE %s is defined multiple times, but not all commands defined a --platform value", saveImage.si.DockerTag)
+			}
+			if !hasPlatform {
+				return fmt.Errorf("SAVE IMAGE %s was already declared (none had --platform values)", saveImage.si.DockerTag)
+			}
+			if _, found := noManifestListImgs[saveImage.si.DockerTag]; found {
+				return fmt.Errorf("cannot save image %s defined multiple times, but declared as SAVE IMAGE --no-manifest-list", saveImage.si.DockerTag)
+			}
 		}
-		if isMultiPlatform[saveImage.si.DockerTag] && noManifestListImgs[saveImage.si.DockerTag] {
-			return fmt.Errorf("cannot save image %s defined multiple times, but declared as SAVE IMAGE --no-manifest-list", saveImage.si.DockerTag)
+
+		if saveImage.si.HasPlatform {
+			// SAVE IMAGE was called with a --platform value
+			if saveImage.si.NoManifestList {
+				noManifestListImgs[saveImage.si.DockerTag] = struct{}{}
+				isMultiPlatform[saveImage.si.DockerTag] = false
+			} else {
+				isMultiPlatform[saveImage.si.DockerTag] = true // do I need to count for previsouly seen?
+			}
+		} else {
+			isMultiPlatform[saveImage.si.DockerTag] = false
 		}
 		imageWaitItems = append(imageWaitItems, saveImage)
 	}

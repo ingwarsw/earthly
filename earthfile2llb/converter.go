@@ -983,12 +983,9 @@ func (c *Converter) SaveImage(ctx context.Context, imageNames []string, pushImag
 				ForceSave:           c.opt.ForceSaveImage,
 				CheckDuplicate:      c.ftrs.CheckDuplicateImages,
 				NoManifestList:      noManifestList,
-				Platform:            c.platr.Materialize(c.platr.Current()), // this should be a resolver -- never call Materialize as we need to know if it's a multi-platform, or NULL for single-platform
-				// should be PlatformResolver
 
-				// This might not work for the case of mixing null-platform and `--platform` values.
-				//singlePlatform: singlePlatform,
-				//Platform:
+				Platform:    c.platr.Materialize(c.platr.Current()),
+				HasPlatform: platutil.IsPlatformDefined(c.platr.Current()),
 			}
 
 			if c.ftrs.WaitBlock {
