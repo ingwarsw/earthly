@@ -903,13 +903,15 @@ func (c *Converter) waitBlock() *waitBlock {
 	return c.waitBlockStack[n-1]
 }
 
-func (c *Converter) pushWaitBlock(ctx context.Context) error {
+// PushWaitBlock should be called when a WAIT block starts, all commands will be added to this new block
+func (c *Converter) PushWaitBlock(ctx context.Context) error {
 	c.opt.Console.Warnf("WAIT/END code is super-experimental and incomplete -- it should currently be avoided")
 	c.waitBlockStack = append(c.waitBlockStack, newWaitBlock())
 	return nil
 }
 
-func (c *Converter) popWaitBlock(ctx context.Context) error {
+// PopWaitBlock should be called when an END is encountered, it will block until all commands within the block complete
+func (c *Converter) PopWaitBlock(ctx context.Context) error {
 	n := len(c.waitBlockStack)
 	if n == 0 {
 		return fmt.Errorf("waitBlockStack is empty") // shouldn't happen

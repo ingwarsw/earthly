@@ -416,7 +416,7 @@ func (i *Interpreter) handleWait(ctx context.Context, waitStmt spec.WaitStatemen
 		return i.errorf(waitStmt.SourceLocation, "WAIT does not accept any options")
 	}
 
-	err := i.converter.pushWaitBlock(ctx)
+	err := i.converter.PushWaitBlock(ctx)
 	if err != nil {
 		return err
 	}
@@ -426,7 +426,7 @@ func (i *Interpreter) handleWait(ctx context.Context, waitStmt spec.WaitStatemen
 		return err
 	}
 
-	return i.converter.popWaitBlock(ctx)
+	return i.converter.PopWaitBlock(ctx)
 }
 
 // Commands -------------------------------------------------------------------

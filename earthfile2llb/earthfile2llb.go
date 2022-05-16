@@ -168,11 +168,11 @@ func Earthfile2LLB(ctx context.Context, target domain.Target, opt ConvertOpt, in
 			}
 			opt.ForceSaveImage = true // legacy mode always saves images regardless of locally or remotely referenced
 		}
-		if opt.waitBlock != nil {
-			panic("waitBlock should not be set during initial call")
-		}
-		opt.waitBlock = newWaitBlock()
+	}
+	opt.PlatformResolver.AllowNativeAndUser = opt.Features.NewPlatform
 
+	if opt.waitBlock == nil {
+		opt.waitBlock = newWaitBlock()
 		defer func() {
 			err := opt.waitBlock.wait(ctx) // ensure final waitblock completes
 			if retErr == nil {
@@ -180,7 +180,6 @@ func Earthfile2LLB(ctx context.Context, target domain.Target, opt ConvertOpt, in
 			}
 		}()
 	}
-	opt.PlatformResolver.AllowNativeAndUser = opt.Features.NewPlatform
 
 	targetWithMetadata := bc.Ref.(domain.Target)
 	sts, found, err := opt.Visited.Add(ctx, targetWithMetadata, opt.PlatformResolver, opt.AllowPrivileged, opt.OverridingVars, opt.parentDepSub)
