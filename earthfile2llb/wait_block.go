@@ -2,16 +2,15 @@ package earthfile2llb
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync"
 
 	"github.com/earthly/earthly/states"
 	"github.com/earthly/earthly/util/llbutil"
 	"github.com/earthly/earthly/util/llbutil/pllb"
+	"github.com/earthly/earthly/util/saveimageutil"
 	"github.com/earthly/earthly/util/syncutil/serrgroup"
 
-	"github.com/moby/buildkit/exporter/containerimage/exptypes"
 	"github.com/moby/buildkit/frontend/gateway/client"
 	gwclient "github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/pkg/errors"
@@ -120,6 +119,8 @@ func (wb *waitBlock) saveImages(ctx context.Context) error {
 	metadata := map[string][]byte{}
 	refs := map[string]client.Reference{}
 
+	imageSaver := saveimageutil.NewExportImageSaver(refs, metadata)
+
 	refID := 0
 	for _, item := range imageWaitItems {
 		if !item.push {
@@ -133,25 +134,9 @@ func (wb *waitBlock) saveImages(ctx context.Context) error {
 			return errors.Wrapf(err, "failed to solve image required for %s", item.si.DockerTag)
 		}
 
-		config, err := json.Marshal(item.si.Image)
-		if err != nil {
-			return errors.Wrapf(err, "marshal save image config")
-		}
-
-		refKey := fmt.Sprintf("image-%d", refID)
-		refPrefix := fmt.Sprintf("ref/%s", refKey)
-		refs[refKey] = ref
-
-		metadata[refPrefix+"/image.name"] = []byte(item.si.DockerTag)
-		metadata[refPrefix+"/export-image-push"] = []byte("true")
-		if item.si.InsecurePush {
-			metadata[refPrefix+"/insecure-push"] = []byte("true")
-		}
-		metadata[refPrefix+"/"+exptypes.ExporterImageConfigKey] = config
-		refID++
-
+		var platformBytes []byte
 		if isMultiPlatform[item.si.DockerTag] {
-			platformStr := item.si.Platform.String()
+			platformBytes = []byte(item.si.Platform.String())
 			platformImgName, err := llbutil.PlatformSpecificImageName(item.si.DockerTag, item.si.Platform)
 			if err != nil {
 				return err
@@ -165,9 +150,13 @@ func (wb *waitBlock) saveImages(ctx context.Context) error {
 				}
 				platformImgNames[platformImgName] = true
 			}
-
-			metadata[refPrefix+"/platform"] = []byte(platformStr)
 		}
+
+		err = imageSaver.AddPushImageEntry(ref, refID, item.si.DockerTag, item.si.InsecurePush, item.si.Image, platformBytes)
+		if err != nil {
+			return err
+		}
+		refID++
 	}
 
 	if len(imageWaitItems) == 0 {

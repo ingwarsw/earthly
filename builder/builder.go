@@ -24,6 +24,7 @@ import (
 	"github.com/earthly/earthly/util/llbutil"
 	"github.com/earthly/earthly/util/llbutil/pllb"
 	"github.com/earthly/earthly/util/platutil"
+	"github.com/earthly/earthly/util/saveimageutil"
 	"github.com/earthly/earthly/util/syncutil/semutil"
 	"github.com/earthly/earthly/variables"
 	"github.com/moby/buildkit/client"
@@ -185,6 +186,7 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 			}
 		}
 		res := gwclient.NewResult()
+		imageSaver := saveimageutil.NewBuildImageSaver(res)
 		if !b.builtMain {
 			ref, err := b.stateToRef(childCtx, gwClient, mts.Final.MainState, mts.Final.PlatformResolver)
 			if err != nil {
@@ -265,27 +267,14 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 						singPlatImgNames[saveImage.DockerTag] = true
 					}
 
-					refKey := fmt.Sprintf("image-%d", imageIndex)
-					refPrefix := fmt.Sprintf("ref/%s", refKey)
-
 					localRegPullID := fmt.Sprintf("sess-%s/sp:img%d", gwClient.BuildOpts().SessionID, imageIndex)
 					localImages[localRegPullID] = saveImage.DockerTag
-					if shouldExport {
-						if b.opt.LocalRegistryAddr != "" {
-							res.AddMeta(fmt.Sprintf("%s/export-image-local-registry", refPrefix), []byte(localRegPullID))
-						} else {
-							res.AddMeta(fmt.Sprintf("%s/export-image", refPrefix), []byte("true"))
-						}
+
+					err = imageSaver.AddPushImageEntry(ref, imageIndex, saveImage.DockerTag, saveImage.InsecurePush, saveImage.Image, nil)
+					if err != nil {
+						return nil, err
 					}
-					res.AddMeta(fmt.Sprintf("%s/image.name", refPrefix), []byte(saveImage.DockerTag))
-					if shouldPush {
-						res.AddMeta(fmt.Sprintf("%s/export-image-push", refPrefix), []byte("true"))
-						if saveImage.InsecurePush {
-							res.AddMeta(fmt.Sprintf("%s/insecure-push", refPrefix), []byte("true"))
-						}
-					}
-					res.AddMeta(fmt.Sprintf("%s/%s", refPrefix, exptypes.ExporterImageConfigKey), config)
-					res.AddRef(refKey, ref)
+
 					imageIndex++
 				} else {
 					resolvedPlat := sts.PlatformResolver.Materialize(sts.PlatformResolver.Current())
@@ -309,17 +298,10 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 
 					// For push.
 					if shouldPush {
-						refKey := fmt.Sprintf("image-%d", imageIndex)
-						refPrefix := fmt.Sprintf("ref/%s", refKey)
-
-						res.AddMeta(fmt.Sprintf("%s/image.name", refPrefix), []byte(saveImage.DockerTag))
-						res.AddMeta(fmt.Sprintf("%s/platform", refPrefix), []byte(platformStr))
-						res.AddMeta(fmt.Sprintf("%s/export-image-push", refPrefix), []byte("true"))
-						if saveImage.InsecurePush {
-							res.AddMeta(fmt.Sprintf("%s/insecure-push", refPrefix), []byte("true"))
+						err = imageSaver.AddPushImageEntry(ref, imageIndex, saveImage.DockerTag, saveImage.InsecurePush, saveImage.Image, []byte(platformStr))
+						if err != nil {
+							return nil, err
 						}
-						res.AddMeta(fmt.Sprintf("%s/%s", refPrefix, exptypes.ExporterImageConfigKey), config)
-						res.AddRef(refKey, ref)
 						imageIndex++
 					}
 
