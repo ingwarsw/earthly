@@ -171,14 +171,14 @@ func Earthfile2LLB(ctx context.Context, target domain.Target, opt ConvertOpt, in
 	}
 	opt.PlatformResolver.AllowNativeAndUser = opt.Features.NewPlatform
 
+	wbWait := false
 	if opt.waitBlock == nil {
 		opt.waitBlock = newWaitBlock()
-		defer func() {
-			err := opt.waitBlock.wait(ctx) // ensure final waitblock completes
-			if retErr == nil {
-				retErr = err
-			}
-		}()
+
+		// we must call opt.waitBlock.wait(), since we are the creator.
+		// unfortunately this must be done before opt.ErrorGroup.Wait() is called (rather than here via a defer),
+		// as the ctx would otherwise be canceled.
+		wbWait = true
 	}
 
 	targetWithMetadata := bc.Ref.(domain.Target)
@@ -206,10 +206,19 @@ func Earthfile2LLB(ctx context.Context, target domain.Target, opt ConvertOpt, in
 	if err != nil {
 		return nil, err
 	}
+
 	mts, err = converter.FinalizeStates(ctx)
 	if err != nil {
 		return nil, err
 	}
+
+	if wbWait {
+		err = opt.waitBlock.wait(ctx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if egWait {
 		egWait = false
 		err := opt.ErrorGroup.Wait()

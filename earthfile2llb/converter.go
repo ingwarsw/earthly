@@ -1415,6 +1415,10 @@ func (c *Converter) StackString() string {
 func (c *Converter) FinalizeStates(ctx context.Context) (*states.MultiTarget, error) {
 	c.markFakeDeps()
 
+	if c.ftrs.WaitBlock {
+		c.waitBlock().addCommand(&c.mts.Final.MainState, c)
+	}
+
 	if !c.varCollection.IsStackAtBase() {
 		// Should never happen.
 		return nil, errors.New("internal error: stack not at base in FinalizeStates")
