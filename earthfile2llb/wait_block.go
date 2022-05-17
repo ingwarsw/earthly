@@ -152,7 +152,7 @@ func (wb *waitBlock) saveImages(ctx context.Context) error {
 			}
 		}
 
-		err = imageSaver.AddPushImageEntry(ref, refID, item.si.DockerTag, item.si.InsecurePush, item.si.Image, platformBytes)
+		_, err = imageSaver.AddPushImageEntry(ref, refID, item.si.DockerTag, true, item.si.InsecurePush, item.si.Image, platformBytes)
 		if err != nil {
 			return err
 		}

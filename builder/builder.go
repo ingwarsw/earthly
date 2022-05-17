@@ -270,12 +270,20 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 					localRegPullID := fmt.Sprintf("sess-%s/sp:img%d", gwClient.BuildOpts().SessionID, imageIndex)
 					localImages[localRegPullID] = saveImage.DockerTag
 
-					err = imageSaver.AddPushImageEntry(ref, imageIndex, saveImage.DockerTag, saveImage.InsecurePush, saveImage.Image, nil)
+					refPrefix, err := imageSaver.AddPushImageEntry(ref, imageIndex, saveImage.DockerTag, shouldPush, saveImage.InsecurePush, saveImage.Image, nil)
 					if err != nil {
 						return nil, err
 					}
-
 					imageIndex++
+
+					if shouldExport {
+						// TODO AddMeta calls should be moved into the imageSaver util
+						if b.opt.LocalRegistryAddr != "" {
+							res.AddMeta(fmt.Sprintf("%s/export-image-local-registry", refPrefix), []byte(localRegPullID))
+						} else {
+							res.AddMeta(fmt.Sprintf("%s/export-image", refPrefix), []byte("true"))
+						}
+					}
 				} else {
 					resolvedPlat := sts.PlatformResolver.Materialize(sts.PlatformResolver.Current())
 					platformStr := resolvedPlat.String()
@@ -298,7 +306,7 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 
 					// For push.
 					if shouldPush {
-						err = imageSaver.AddPushImageEntry(ref, imageIndex, saveImage.DockerTag, saveImage.InsecurePush, saveImage.Image, []byte(platformStr))
+						_, err = imageSaver.AddPushImageEntry(ref, imageIndex, saveImage.DockerTag, shouldPush, saveImage.InsecurePush, saveImage.Image, []byte(platformStr))
 						if err != nil {
 							return nil, err
 						}

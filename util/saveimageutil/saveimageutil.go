@@ -34,10 +34,10 @@ type ImageSaver struct {
 }
 
 // AddPushImageEntry adds ref and metadata required to cause an image to be pushed
-func (is *ImageSaver) AddPushImageEntry(ref gwclient.Reference, refID int, imageName string, insecurePush bool, imageConfig *image.Image, platformStr []byte) error {
+func (is *ImageSaver) AddPushImageEntry(ref gwclient.Reference, refID int, imageName string, shouldPush, insecurePush bool, imageConfig *image.Image, platformStr []byte) (string, error) {
 	config, err := json.Marshal(imageConfig)
 	if err != nil {
-		return errors.Wrapf(err, "marshal save image config")
+		return "", errors.Wrapf(err, "marshal save image config")
 	}
 
 	refKey := fmt.Sprintf("image-%d", refID)
@@ -46,14 +46,16 @@ func (is *ImageSaver) AddPushImageEntry(ref gwclient.Reference, refID int, image
 	is.addRef(refKey, ref)
 
 	is.addMeta(refPrefix+"/image.name", []byte(imageName))
-	is.addMeta(refPrefix+"/export-image-push", []byte("true"))
-	if insecurePush {
-		is.addMeta(refPrefix+"/insecure-push", []byte("true"))
+	if shouldPush {
+		is.addMeta(refPrefix+"/export-image-push", []byte("true"))
+		if insecurePush {
+			is.addMeta(refPrefix+"/insecure-push", []byte("true"))
+		}
 	}
 	is.addMeta(refPrefix+"/"+exptypes.ExporterImageConfigKey, config)
 
 	if platformStr != nil {
 		is.addMeta(refPrefix+"/platform", []byte(platformStr))
 	}
-	return nil
+	return refPrefix, nil // TODO once all earthlyoutput-metadata-related code is moved into saveimageutil, change to "return err" only
 }
