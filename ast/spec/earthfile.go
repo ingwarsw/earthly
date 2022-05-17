@@ -54,7 +54,6 @@ type Command struct {
 // WithStatement is the AST representation of a with statement.
 type WithStatement struct {
 	Command        Command         `json:"command"`
-	Args           []string        `json:"args"`
 	Body           Block           `json:"body"`
 	SourceLocation *SourceLocation `json:"sourceLocation,omitempty"`
 }
