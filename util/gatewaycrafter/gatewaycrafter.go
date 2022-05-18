@@ -11,11 +11,14 @@ import (
 	"github.com/pkg/errors"
 )
 
+// GatewayCrafter abstracts the logic required to interact with the gateway Build and Export functions
 type GatewayCrafter interface {
 	AddPushImageEntry(ref gwclient.Reference, refID int, imageName string, shouldPush, insecurePush bool, imageConfig *image.Image, platformStr []byte) (string, error)
 }
 
-type GatewayCrafterWithMaps interface {
+// MapBasedGatewayCrafter extends the GatewayCrafter but provides an additional method for
+// fetching the Ref and metadata maps which must be passed to the gwclient.Export method.
+type MapBasedGatewayCrafter interface {
 	GatewayCrafter
 	GetRefsAndMetadata() (map[string]gwclient.Reference, map[string][]byte)
 }
@@ -30,7 +33,7 @@ func NewGatewayCrafterForBuild(res *gwclient.Result) GatewayCrafter {
 }
 
 // NewGatewayCrafterForExport creates a new GatewayCrafter designed to be used to populate ref and metadata entries for the buildkit Export function
-func NewGatewayCrafterForExport() GatewayCrafterWithMaps {
+func NewGatewayCrafterForExport() MapBasedGatewayCrafter {
 	gebwm := &gatewayCrafterWithMaps{}
 	gebwm.refs = map[string]gwclient.Reference{}
 	gebwm.metadata = map[string][]byte{}

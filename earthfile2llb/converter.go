@@ -905,7 +905,7 @@ func (c *Converter) waitBlock() *waitBlock {
 
 // PushWaitBlock should be called when a WAIT block starts, all commands will be added to this new block
 func (c *Converter) PushWaitBlock(ctx context.Context) error {
-	c.opt.Console.Warnf("WAIT/END code is super-experimental and incomplete -- it should currently be avoided")
+	c.opt.Console.Warnf("WAIT/END code is experimental and may be incomplete")
 	c.waitBlockStack = append(c.waitBlockStack, newWaitBlock())
 	return nil
 }
@@ -971,7 +971,6 @@ func (c *Converter) SaveImage(ctx context.Context, imageNames []string, pushImag
 					NoManifestList:      noManifestList,
 				})
 		} else {
-			//singlePlatform := sts.PlatformResolver.Current() == platutil.DefaultPlatform || noManifestList
 			si := states.SaveImage{
 				State:               c.persistCache(c.mts.Final.MainState),
 				Image:               c.mts.Final.MainImage.Clone(),
