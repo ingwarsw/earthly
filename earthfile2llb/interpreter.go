@@ -113,7 +113,7 @@ func (i *Interpreter) handleBlockParallel(ctx context.Context, b spec.Block, sta
 		stmt := b[index]
 		if stmt.Command != nil {
 			switch stmt.Command.Name {
-			case "ARG", "IF", "FOR", "LOCALLY", "FROM", "FROM DOCKERFILE":
+			case "ARG", "LOCALLY", "FROM", "FROM DOCKERFILE":
 				// Cannot do any further parallel builds - these commands need to be
 				// executed to ensure that they don't impact the outcome. As such,
 				// commands following these cannot be executed preemptively.
@@ -134,8 +134,11 @@ func (i *Interpreter) handleBlockParallel(ctx context.Context, b spec.Block, sta
 			case "DOCKER":
 				// TODO
 			}
-		} else if stmt.Wait != nil {
-			// TODO
+		} else if stmt.If != nil || stmt.For != nil || stmt.Wait != nil {
+			// Cannot do any further parallel builds - these commands need to be
+			// executed to ensure that they don't impact the outcome. As such,
+			// commands following these cannot be executed preemptively.
+			return nil
 		}
 	}
 	return nil

@@ -6,12 +6,11 @@ import (
 	"sync"
 
 	"github.com/earthly/earthly/states"
+	"github.com/earthly/earthly/util/gatewaycrafter"
 	"github.com/earthly/earthly/util/llbutil"
 	"github.com/earthly/earthly/util/llbutil/pllb"
-	"github.com/earthly/earthly/util/saveimageutil"
 	"github.com/earthly/earthly/util/syncutil/serrgroup"
 
-	"github.com/moby/buildkit/frontend/gateway/client"
 	gwclient "github.com/moby/buildkit/frontend/gateway/client"
 	"github.com/pkg/errors"
 )
@@ -116,10 +115,7 @@ func (wb *waitBlock) saveImages(ctx context.Context) error {
 		return nil
 	}
 
-	metadata := map[string][]byte{}
-	refs := map[string]client.Reference{}
-
-	imageSaver := saveimageutil.NewExportImageSaver(refs, metadata)
+	gwCrafter := gatewaycrafter.NewGatewayCrafterForExport()
 
 	refID := 0
 	for _, item := range imageWaitItems {
@@ -152,7 +148,7 @@ func (wb *waitBlock) saveImages(ctx context.Context) error {
 			}
 		}
 
-		_, err = imageSaver.AddPushImageEntry(ref, refID, item.si.DockerTag, true, item.si.InsecurePush, item.si.Image, platformBytes)
+		_, err = gwCrafter.AddPushImageEntry(ref, refID, item.si.DockerTag, true, item.si.InsecurePush, item.si.Image, platformBytes)
 		if err != nil {
 			return err
 		}
@@ -164,6 +160,7 @@ func (wb *waitBlock) saveImages(ctx context.Context) error {
 	}
 	gatewayClient := imageWaitItems[0].c.opt.GwClient // could be any converter's gwClient (they should app be the same)
 
+	refs, metadata := gwCrafter.GetRefsAndMetadata()
 	err := gatewayClient.Export(ctx, gwclient.ExportRequest{
 		Refs:     refs,
 		Metadata: metadata,

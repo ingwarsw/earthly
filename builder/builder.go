@@ -20,11 +20,11 @@ import (
 	"github.com/earthly/earthly/outmon"
 	"github.com/earthly/earthly/states"
 	"github.com/earthly/earthly/util/containerutil"
+	"github.com/earthly/earthly/util/gatewaycrafter"
 	"github.com/earthly/earthly/util/gwclientlogger"
 	"github.com/earthly/earthly/util/llbutil"
 	"github.com/earthly/earthly/util/llbutil/pllb"
 	"github.com/earthly/earthly/util/platutil"
-	"github.com/earthly/earthly/util/saveimageutil"
 	"github.com/earthly/earthly/util/syncutil/semutil"
 	"github.com/earthly/earthly/variables"
 	"github.com/moby/buildkit/client"
@@ -186,7 +186,7 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 			}
 		}
 		res := gwclient.NewResult()
-		imageSaver := saveimageutil.NewBuildImageSaver(res)
+		gwCrafter := gatewaycrafter.NewGatewayCrafterForBuild(res)
 		if !b.builtMain {
 			ref, err := b.stateToRef(childCtx, gwClient, mts.Final.MainState, mts.Final.PlatformResolver)
 			if err != nil {
@@ -270,14 +270,14 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 					localRegPullID := fmt.Sprintf("sess-%s/sp:img%d", gwClient.BuildOpts().SessionID, imageIndex)
 					localImages[localRegPullID] = saveImage.DockerTag
 
-					refPrefix, err := imageSaver.AddPushImageEntry(ref, imageIndex, saveImage.DockerTag, shouldPush, saveImage.InsecurePush, saveImage.Image, nil)
+					refPrefix, err := gwCrafter.AddPushImageEntry(ref, imageIndex, saveImage.DockerTag, shouldPush, saveImage.InsecurePush, saveImage.Image, nil)
 					if err != nil {
 						return nil, err
 					}
 					imageIndex++
 
 					if shouldExport {
-						// TODO AddMeta calls should be moved into the imageSaver util
+						// TODO AddMeta calls should be moved into the gatewaycrafter util
 						if b.opt.LocalRegistryAddr != "" {
 							res.AddMeta(fmt.Sprintf("%s/export-image-local-registry", refPrefix), []byte(localRegPullID))
 						} else {
@@ -306,7 +306,7 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 
 					// For push.
 					if shouldPush {
-						_, err = imageSaver.AddPushImageEntry(ref, imageIndex, saveImage.DockerTag, shouldPush, saveImage.InsecurePush, saveImage.Image, []byte(platformStr))
+						_, err = gwCrafter.AddPushImageEntry(ref, imageIndex, saveImage.DockerTag, shouldPush, saveImage.InsecurePush, saveImage.Image, []byte(platformStr))
 						if err != nil {
 							return nil, err
 						}

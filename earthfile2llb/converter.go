@@ -917,10 +917,10 @@ func (c *Converter) PopWaitBlock(ctx context.Context) error {
 		return fmt.Errorf("waitBlockStack is empty") // shouldn't happen
 	}
 
-	// TODO do we need to finalize the state somehow?
-	// we might also need it in finalize to handle WAIT BUILD +foo END
-	// TODO what about previously BUILD targets that were built via other code outside of the current WAIT/END block
 	if c.ftrs.WaitBlock {
+		// an END is only ever encountered by the converter that created the WAIT block, this is the only special
+		// instance where we reference mts.Final.MainState before calling FinalizeStates; this can be done here
+		// as the waitBlock belongs to the current Converter
 		c.waitBlock().addCommand(&c.mts.Final.MainState, c)
 	}
 
@@ -1557,6 +1557,7 @@ func (c *Converter) buildTarget(ctx context.Context, fullTargetName string, plat
 			c.varCollection.Imports().SetGlobal(mts.Final.GlobalImports)
 		}
 	}
+
 	return mts, nil
 }
 
