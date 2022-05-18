@@ -180,7 +180,7 @@ func (wb *waitBlock) waitCommands(ctx context.Context) error {
 			continue
 		}
 		errGroup.Go(func() error {
-			return cmdItem.c.forceExecution(ctx, *cmdItem.cmd, cmdItem.c.platr)
+			return cmdItem.c.forceExecutionWithSemaphore(ctx, *cmdItem.cmd, cmdItem.c.platr)
 		})
 	}
 	return errGroup.Wait()
