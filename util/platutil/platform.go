@@ -24,7 +24,7 @@ type Platform struct {
 
 // IsPlatformDefined returns true when the platform was explicitly set
 func IsPlatformDefined(p Platform) bool {
-	return p.p != nil || p.user || p.native
+	return p != DefaultPlatform
 }
 
 // FromLLBPlatform returns a platform from a containerd platform.
