@@ -50,7 +50,7 @@ func (wb *waitBlock) addSaveImage(si states.SaveImage, c *Converter, push bool) 
 	wb.items = append(wb.items, &item)
 }
 
-func (wb *waitBlock) addCommand(cmd *pllb.State, c *Converter) {
+func (wb *waitBlock) addState(cmd *pllb.State, c *Converter) {
 	wb.mu.Lock()
 	defer wb.mu.Unlock()
 	item := runCommandWaitItem{

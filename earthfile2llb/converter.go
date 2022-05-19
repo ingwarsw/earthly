@@ -921,7 +921,7 @@ func (c *Converter) PopWaitBlock(ctx context.Context) error {
 		// an END is only ever encountered by the converter that created the WAIT block, this is the only special
 		// instance where we reference mts.Final.MainState before calling FinalizeStates; this can be done here
 		// as the waitBlock belongs to the current Converter
-		c.waitBlock().addCommand(&c.mts.Final.MainState, c)
+		c.waitBlock().addState(&c.mts.Final.MainState, c)
 	}
 
 	i := n - 1
@@ -1430,7 +1430,7 @@ func (c *Converter) FinalizeStates(ctx context.Context) (*states.MultiTarget, er
 	}
 
 	if c.ftrs.WaitBlock {
-		c.waitBlock().addCommand(&c.mts.Final.MainState, c)
+		c.waitBlock().addState(&c.mts.Final.MainState, c)
 	}
 
 	close(c.mts.Final.Done())
