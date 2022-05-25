@@ -115,7 +115,7 @@ func (wb *waitBlock) saveImages(ctx context.Context) error {
 		return nil
 	}
 
-	gwCrafter := gatewaycrafter.NewGatewayCrafterForExport()
+	gwCrafter := gatewaycrafter.NewGatewayCrafter()
 
 	refID := 0
 	for _, item := range imageWaitItems {

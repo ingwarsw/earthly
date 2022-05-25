@@ -11,45 +11,24 @@ import (
 	"github.com/pkg/errors"
 )
 
-// GatewayCrafter abstracts the logic required to interact with the gateway Build and Export functions
-type GatewayCrafter interface {
-	AddPushImageEntry(ref gwclient.Reference, refID int, imageName string, shouldPush, insecurePush bool, imageConfig *image.Image, platformStr []byte) (string, error)
-}
-
-// MapBasedGatewayCrafter extends the GatewayCrafter but provides an additional method for
-// fetching the Ref and metadata maps which must be passed to the gwclient.Export method.
-type MapBasedGatewayCrafter interface {
-	GatewayCrafter
-	GetRefsAndMetadata() (map[string]gwclient.Reference, map[string][]byte)
-}
-
-// NewGatewayCrafterForBuild creates a new GatewayCrafter designed to be used within the buildkit Build function;
-// it configures earthlyoutput exports into the passed in res instance
-func NewGatewayCrafterForBuild(res *gwclient.Result) GatewayCrafter {
-	return &gatewayCrafterBase{
-		addRef:  res.AddRef,
-		addMeta: res.AddMeta,
+// NewGatewayCrafter creates a new GatewayCrafter designed to be used to populate ref and metadata entries for the buildkit Export function
+func NewGatewayCrafter() *GatewayCrafter {
+	return &GatewayCrafter{
+		res: gwclient.NewResult(),
 	}
 }
 
-// NewGatewayCrafterForExport creates a new GatewayCrafter designed to be used to populate ref and metadata entries for the buildkit Export function
-func NewGatewayCrafterForExport() MapBasedGatewayCrafter {
-	gebwm := &gatewayCrafterWithMaps{}
-	gebwm.refs = map[string]gwclient.Reference{}
-	gebwm.metadata = map[string][]byte{}
-	gebwm.addRef = func(k string, ref gwclient.Reference) { gebwm.refs[k] = ref }
-	gebwm.addMeta = func(k string, v []byte) { gebwm.metadata[k] = v }
-	return gebwm
-}
-
-// gatewayCrafterBase exposes a common interface for adding references and metadata to either buildkit's Build or Export functions
-type gatewayCrafterBase struct {
-	addRef  func(string, gwclient.Reference)
-	addMeta func(string, []byte)
+// GatewayCrafter wraps the gwclient.Result object with a helper function
+// which is used to deduplicate code between builder.go and wait_block.go
+// eventually all SAVE IMAGE (and other earthly exporter) logic will be triggered via the WAIT/END PopWaitBlock() function
+// and code that direct accesses to the underlying result instance will be removed
+type GatewayCrafter struct {
+	done bool
+	res  *gwclient.Result
 }
 
 // AddPushImageEntry adds ref and metadata required to cause an image to be pushed
-func (ge *gatewayCrafterBase) AddPushImageEntry(ref gwclient.Reference, refID int, imageName string, shouldPush, insecurePush bool, imageConfig *image.Image, platformStr []byte) (string, error) {
+func (gc *GatewayCrafter) AddPushImageEntry(ref gwclient.Reference, refID int, imageName string, shouldPush, insecurePush bool, imageConfig *image.Image, platformStr []byte) (string, error) {
 	config, err := json.Marshal(imageConfig)
 	if err != nil {
 		return "", errors.Wrapf(err, "marshal save image config")
@@ -58,29 +37,53 @@ func (ge *gatewayCrafterBase) AddPushImageEntry(ref gwclient.Reference, refID in
 	refKey := fmt.Sprintf("image-%d", refID)
 	refPrefix := fmt.Sprintf("ref/%s", refKey)
 
-	ge.addRef(refKey, ref)
+	gc.AddRef(refKey, ref)
 
-	ge.addMeta(refPrefix+"/image.name", []byte(imageName))
+	gc.AddMeta(refPrefix+"/image.name", []byte(imageName))
 	if shouldPush {
-		ge.addMeta(refPrefix+"/export-image-push", []byte("true"))
+		gc.AddMeta(refPrefix+"/export-image-push", []byte("true"))
 		if insecurePush {
-			ge.addMeta(refPrefix+"/insecure-push", []byte("true"))
+			gc.AddMeta(refPrefix+"/insecure-push", []byte("true"))
 		}
 	}
-	ge.addMeta(refPrefix+"/"+exptypes.ExporterImageConfigKey, config)
+	gc.AddMeta(refPrefix+"/"+exptypes.ExporterImageConfigKey, config)
 
 	if platformStr != nil {
-		ge.addMeta(refPrefix+"/platform", []byte(platformStr))
+		gc.AddMeta(refPrefix+"/platform", []byte(platformStr))
 	}
 	return refPrefix, nil // TODO once all earthlyoutput-metadata-related code is moved into saveimageutil, change to "return err" only
 }
 
-type gatewayCrafterWithMaps struct {
-	gatewayCrafterBase
-	refs     map[string]gwclient.Reference
-	metadata map[string][]byte
+// AddRef adds a reference to the results to be exported.
+// NOTE: The use of this function (outside of gatewaycrafter.go) is deprecated. This function will become private once
+// all SAVE IMAGE logic is triggered via the WAIT/END PopWaitBlock() function.
+func (gc *GatewayCrafter) AddRef(k string, ref gwclient.Reference) {
+	gc.assertNotDone()
 }
 
-func (ge *gatewayCrafterWithMaps) GetRefsAndMetadata() (map[string]gwclient.Reference, map[string][]byte) {
-	return ge.refs, ge.metadata
+// AddMeta adds metadata to the results to be exported.
+// NOTE: The use of this function (outside of gatewaycrafter.go) is deprecated. This function will become private once
+// all SAVE IMAGE logic is triggered via the WAIT/END PopWaitBlock() function.
+func (gc *GatewayCrafter) AddMeta(k string, v []byte) {
+	gc.assertNotDone()
+}
+
+// GetRefsAndMetadata fetches the result Refs and Metadata; it is not re-entrant
+func (gc *GatewayCrafter) GetRefsAndMetadata() (map[string]gwclient.Reference, map[string][]byte) {
+	gc.assertNotDone()
+	gc.done = true
+	return gc.res.Refs, gc.res.Metadata
+}
+
+// GetResult fetches the gwclient result object; it is not re-entrant
+func (gc *GatewayCrafter) GetResult() *gwclient.Result {
+	gc.assertNotDone()
+	gc.done = true
+	return gc.res
+}
+
+func (gc *GatewayCrafter) assertNotDone() {
+	if gc.done {
+		panic("GatewayCrafter can no longer be used after a call to GetResults/GetRefsAndMetadata")
+	}
 }

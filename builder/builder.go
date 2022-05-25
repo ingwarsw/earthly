@@ -185,14 +185,13 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 				return nil, err
 			}
 		}
-		res := gwclient.NewResult()
-		gwCrafter := gatewaycrafter.NewGatewayCrafterForBuild(res)
+		gwCrafter := gatewaycrafter.NewGatewayCrafter()
 		if !b.builtMain {
 			ref, err := b.stateToRef(childCtx, gwClient, mts.Final.MainState, mts.Final.PlatformResolver)
 			if err != nil {
 				return nil, err
 			}
-			res.AddRef("main", ref)
+			gwCrafter.AddRef("main", ref)
 		}
 		if !opt.NoOutput && opt.OnlyArtifact != nil && !opt.OnlyFinalTargetImages {
 			ref, err := b.stateToRef(childCtx, gwClient, mts.Final.ArtifactsState, mts.Final.PlatformResolver)
@@ -201,9 +200,9 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 			}
 			refKey := "final-artifact"
 			refPrefix := fmt.Sprintf("ref/%s", refKey)
-			res.AddRef(refKey, ref)
-			res.AddMeta(fmt.Sprintf("%s/export-dir", refPrefix), []byte("true"))
-			res.AddMeta(fmt.Sprintf("%s/final-artifact", refPrefix), []byte("true"))
+			gwCrafter.AddRef(refKey, ref)
+			gwCrafter.AddMeta(fmt.Sprintf("%s/export-dir", refPrefix), []byte("true"))
+			gwCrafter.AddMeta(fmt.Sprintf("%s/final-artifact", refPrefix), []byte("true"))
 		}
 
 		isMultiPlatform := make(map[string]bool)    // DockerTag -> bool
@@ -235,7 +234,7 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 					return nil, err
 				}
 				refKey := fmt.Sprintf("dep-%d", depIndex)
-				res.AddRef(refKey, depRef)
+				gwCrafter.AddRef(refKey, depRef)
 				depIndex++
 			}
 
@@ -277,11 +276,10 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 					imageIndex++
 
 					if shouldExport {
-						// TODO AddMeta calls should be moved into the gatewaycrafter util
 						if b.opt.LocalRegistryAddr != "" {
-							res.AddMeta(fmt.Sprintf("%s/export-image-local-registry", refPrefix), []byte(localRegPullID))
+							gwCrafter.AddMeta(fmt.Sprintf("%s/export-image-local-registry", refPrefix), []byte(localRegPullID))
 						} else {
-							res.AddMeta(fmt.Sprintf("%s/export-image", refPrefix), []byte("true"))
+							gwCrafter.AddMeta(fmt.Sprintf("%s/export-image", refPrefix), []byte("true"))
 						}
 					}
 				} else {
@@ -325,14 +323,14 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 						}
 						localImages[localRegPullID] = platformImgName
 						if b.opt.LocalRegistryAddr != "" {
-							res.AddMeta(fmt.Sprintf("%s/export-image-local-registry", refPrefix), []byte(localRegPullID))
+							gwCrafter.AddMeta(fmt.Sprintf("%s/export-image-local-registry", refPrefix), []byte(localRegPullID))
 						} else {
-							res.AddMeta(fmt.Sprintf("%s/export-image", refPrefix), []byte("true"))
+							gwCrafter.AddMeta(fmt.Sprintf("%s/export-image", refPrefix), []byte("true"))
 						}
 
-						res.AddMeta(fmt.Sprintf("%s/image.name", refPrefix), []byte(platformImgName))
-						res.AddMeta(fmt.Sprintf("%s/%s", refPrefix, exptypes.ExporterImageConfigKey), config)
-						res.AddRef(refKey, ref)
+						gwCrafter.AddMeta(fmt.Sprintf("%s/image.name", refPrefix), []byte(platformImgName))
+						gwCrafter.AddMeta(fmt.Sprintf("%s/%s", refPrefix, exptypes.ExporterImageConfigKey), config)
+						gwCrafter.AddRef(refKey, ref)
 						imageIndex++
 						manifestLists[saveImage.DockerTag] = append(
 							manifestLists[saveImage.DockerTag], manifest{
@@ -356,16 +354,16 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 					}
 					refKey := fmt.Sprintf("dir-%d", dirIndex)
 					refPrefix := fmt.Sprintf("ref/%s", refKey)
-					res.AddRef(refKey, ref)
+					gwCrafter.AddRef(refKey, ref)
 					artifact := domain.Artifact{
 						Target:   sts.Target,
 						Artifact: saveLocal.ArtifactPath,
 					}
-					res.AddMeta(fmt.Sprintf("%s/artifact", refPrefix), []byte(artifact.String()))
-					res.AddMeta(fmt.Sprintf("%s/src-path", refPrefix), []byte(saveLocal.ArtifactPath))
-					res.AddMeta(fmt.Sprintf("%s/dest-path", refPrefix), []byte(saveLocal.DestPath))
-					res.AddMeta(fmt.Sprintf("%s/export-dir", refPrefix), []byte("true"))
-					res.AddMeta(fmt.Sprintf("%s/dir-index", refPrefix), []byte(fmt.Sprintf("%d", dirIndex)))
+					gwCrafter.AddMeta(fmt.Sprintf("%s/artifact", refPrefix), []byte(artifact.String()))
+					gwCrafter.AddMeta(fmt.Sprintf("%s/src-path", refPrefix), []byte(saveLocal.ArtifactPath))
+					gwCrafter.AddMeta(fmt.Sprintf("%s/dest-path", refPrefix), []byte(saveLocal.DestPath))
+					gwCrafter.AddMeta(fmt.Sprintf("%s/export-dir", refPrefix), []byte("true"))
+					gwCrafter.AddMeta(fmt.Sprintf("%s/dir-index", refPrefix), []byte(fmt.Sprintf("%d", dirIndex)))
 					destPathWhitelist[saveLocal.DestPath] = true
 					dirIndex++
 				}
@@ -374,13 +372,13 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 			targetInteractiveSession := b.targetPhaseInteractiveSession(sts)
 			if targetInteractiveSession.Initialized && targetInteractiveSession.Kind == states.SessionEphemeral {
 				ref, err := b.stateToRef(ctx, gwClient, targetInteractiveSession.State, sts.PlatformResolver)
-				res.AddRef("ephemeral", ref)
+				gwCrafter.AddRef("ephemeral", ref)
 				if err != nil {
 					return nil, err
 				}
 			}
 		}
-		return res, nil
+		return gwCrafter.GetResult(), nil
 	}
 	onImage := func(childCtx context.Context, eg *errgroup.Group, imageName string) (io.WriteCloser, error) {
 		pipeR, pipeW := io.Pipe()
