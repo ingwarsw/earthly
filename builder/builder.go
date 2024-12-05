@@ -694,7 +694,7 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 			if saveImage.Push && !opt.Push {
 				exportCoordinator.AddPushedImageSummary(mts.Final.Target.StringCanonical(), saveImage.DockerTag, b.opt.Console.Salt(), false)
 			}
-			exportCoordinator.AddLocalOutputSummary(mts.Final.Target.StringCanonical(), saveImage.DockerTag, b.opt.Console.Salt())
+			//exportCoordinator.AddLocalOutputSummary(mts.Final.Target.StringCanonical(), saveImage.DockerTag, b.opt.Console.Salt())
 		}
 	} else {
 		// This needs to match with the same index used during output.
@@ -716,7 +716,7 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 				if saveImage.Push && !opt.Push && !sts.Target.IsRemote() {
 					exportCoordinator.AddPushedImageSummary(sts.Target.StringCanonical(), saveImage.DockerTag, sts.ID, false)
 				}
-				exportCoordinator.AddLocalOutputSummary(sts.Target.StringCanonical(), saveImage.DockerTag, sts.ID)
+				//exportCoordinator.AddLocalOutputSummary(sts.Target.StringCanonical(), saveImage.DockerTag, sts.ID)
 			}
 			if sts.GetDoSaves() {
 				for _, saveLocal := range sts.SaveLocals {
