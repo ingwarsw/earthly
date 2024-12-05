@@ -680,6 +680,9 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 		for _, saveImage := range mts.Final.SaveImages {
 			doSave := (mts.Final.GetDoSaves() || saveImage.ForceSave)
 			shouldExport := !opt.NoOutput && saveImage.DockerTag != "" && doSave
+			shouldExport = false
+			b.opt.Console.Printf("Skipping push of image II %s\n", saveImage.DockerTag)
+
 			shouldPush := opt.Push && saveImage.Push && saveImage.DockerTag != "" && mts.Final.GetDoPushes()
 			if saveImage.SkipBuilder || !shouldPush && !shouldExport {
 				continue
@@ -702,6 +705,8 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 				doSave := (sts.GetDoSaves() || saveImage.ForceSave)
 				shouldPush := opt.Push && saveImage.Push && !sts.Target.IsRemote() && saveImage.DockerTag != "" && sts.GetDoPushes()
 				shouldExport := !opt.NoOutput && saveImage.DockerTag != "" && doSave
+				shouldExport = false
+				b.opt.Console.Printf("Skipping push of image III %s\n", saveImage.DockerTag)
 				if saveImage.SkipBuilder || !shouldPush && !shouldExport {
 					continue
 				}
