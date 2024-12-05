@@ -1144,7 +1144,6 @@ func (c *Converter) SaveImage(ctx context.Context, imageNames []string, hasPushF
 		justCacheHint = true
 	}
 	for _, imageName := range imageNames {
-		c.opt.Console.Warnf("Proxessing SAVE IMAGE %s", imageName)
 		if c.mts.Final.RunPush.HasState {
 			if c.ftrs.WaitBlock {
 				panic("RunPush.HasState should never be true when --wait-block is used")
@@ -1162,7 +1161,7 @@ func (c *Converter) SaveImage(ctx context.Context, imageNames []string, hasPushF
 					InsecurePush:        insecurePush,
 					CacheHint:           cacheHint,
 					HasPushDependencies: true,
-					ForceSave:           false,
+					ForceSave:           c.opt.ForceSaveImage,
 					CheckDuplicate:      c.ftrs.CheckDuplicateImages,
 					NoManifestList:      noManifestList,
 				})
@@ -1175,7 +1174,7 @@ func (c *Converter) SaveImage(ctx context.Context, imageNames []string, hasPushF
 				InsecurePush:        insecurePush,
 				CacheHint:           cacheHint,
 				HasPushDependencies: false,
-				ForceSave:           false,
+				ForceSave:           c.opt.ForceSaveImage,
 				CheckDuplicate:      c.ftrs.CheckDuplicateImages,
 				NoManifestList:      noManifestList,
 
@@ -1185,8 +1184,7 @@ func (c *Converter) SaveImage(ctx context.Context, imageNames []string, hasPushF
 
 			if c.ftrs.WaitBlock {
 				shouldPush := hasPushFlag && si.DockerTag != ""
-				shouldExportLocally := false // si.DockerTag != "" && c.opt.DoSaves
-				c.opt.Console.Warnf("Not saving image %s as it is not pushed", si.DockerTag)
+				shouldExportLocally := si.DockerTag != "" && c.opt.DoSaves
 				waitItem := newSaveImage(si, c, shouldPush, shouldExportLocally)
 				c.waitBlock().AddItem(waitItem)
 				c.mts.Final.WaitItems = append(c.mts.Final.WaitItems, waitItem)
