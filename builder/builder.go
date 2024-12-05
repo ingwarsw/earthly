@@ -402,7 +402,7 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 				doSave := (sts.GetDoSaves() || saveImage.ForceSave)
 				shouldExport := !opt.NoOutput && opt.OnlyArtifact == nil && !(opt.OnlyFinalTargetImages && sts != mts.Final) && saveImage.DockerTag != "" && doSave
 				shouldExport = false
-				b.opt.Console.Printf("Skipping push of image %s\n", saveImage.DockerTag)
+				b.opt.Console.Printf("Skipping local save of image %s\n", saveImage.DockerTag)
 
 				shouldPush := opt.Push && saveImage.Push && !sts.Target.IsRemote() && saveImage.DockerTag != "" && sts.GetDoPushes()
 				useCacheHint := saveImage.CacheHint && b.opt.CacheExport != ""
@@ -681,7 +681,7 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 			doSave := (mts.Final.GetDoSaves() || saveImage.ForceSave)
 			shouldExport := !opt.NoOutput && saveImage.DockerTag != "" && doSave
 			shouldExport = false
-			b.opt.Console.Printf("Skipping push of image II %s\n", saveImage.DockerTag)
+			b.opt.Console.Printf("Skipping local save of image II %s\n", saveImage.DockerTag)
 
 			shouldPush := opt.Push && saveImage.Push && saveImage.DockerTag != "" && mts.Final.GetDoPushes()
 			if saveImage.SkipBuilder || !shouldPush && !shouldExport {
@@ -706,7 +706,7 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 				shouldPush := opt.Push && saveImage.Push && !sts.Target.IsRemote() && saveImage.DockerTag != "" && sts.GetDoPushes()
 				shouldExport := !opt.NoOutput && saveImage.DockerTag != "" && doSave
 				shouldExport = false
-				b.opt.Console.Printf("Skipping push of image III %s\n", saveImage.DockerTag)
+				b.opt.Console.Printf("Skipping local save of image III %s\n", saveImage.DockerTag)
 				if saveImage.SkipBuilder || !shouldPush && !shouldExport {
 					continue
 				}
