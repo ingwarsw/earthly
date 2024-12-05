@@ -1184,7 +1184,7 @@ func (c *Converter) SaveImage(ctx context.Context, imageNames []string, hasPushF
 
 			if c.ftrs.WaitBlock {
 				shouldPush := hasPushFlag && si.DockerTag != ""
-				shouldExportLocally := si.DockerTag != "" && c.opt.DoSaves
+				shouldExportLocally := false // si.DockerTag != "" && c.opt.DoSaves
 				waitItem := newSaveImage(si, c, shouldPush, shouldExportLocally)
 				c.waitBlock().AddItem(waitItem)
 				c.mts.Final.WaitItems = append(c.mts.Final.WaitItems, waitItem)
