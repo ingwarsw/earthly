@@ -561,11 +561,10 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 		pipeR, pipeW := io.Pipe()
 		eg.Go(func() error {
 			defer pipeR.Close()
-			b.opt.Console.Printf("IMGWAR: skipping LoadDockerTar OnImage save %v waitFor %v\n", imageName, waitFor)
-			//err := dockerutil.LoadDockerTar(childCtx, b.opt.ContainerFrontend, pipeR)
-			//if err != nil {
-			//	return errors.Wrapf(err, "load docker tar")
-			//}
+			err := dockerutil.LoadDockerTar(childCtx, b.opt.ContainerFrontend, pipeR)
+			if err != nil {
+				return errors.Wrapf(err, "load docker tar")
+			}
 			if manifestKey == "" {
 				return nil
 			}
