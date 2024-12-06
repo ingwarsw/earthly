@@ -401,8 +401,8 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 			for _, saveImage := range b.targetPhaseImages(sts) {
 				doSave := (sts.GetDoSaves() || saveImage.ForceSave)
 				shouldExport := !opt.NoOutput && opt.OnlyArtifact == nil && !(opt.OnlyFinalTargetImages && sts != mts.Final) && saveImage.DockerTag != "" && doSave
+				b.opt.Console.Printf("Skipping local save of image %s orig %v\n", saveImage.DockerTag, shouldExport)
 				shouldExport = false
-				b.opt.Console.Printf("Skipping local save of image %s\n", saveImage.DockerTag)
 
 				shouldPush := opt.Push && saveImage.Push && !sts.Target.IsRemote() && saveImage.DockerTag != "" && sts.GetDoPushes()
 				useCacheHint := saveImage.CacheHint && b.opt.CacheExport != ""
@@ -557,7 +557,9 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 		return nil
 	}
 	onImage := func(childCtx context.Context, eg *errgroup.Group, imageName, waitFor, manifestKey string) (io.WriteCloser, error) {
+		b.opt.Console.Printf("OnImage save %v\n", imageName)
 		pipeR, pipeW := io.Pipe()
+		return pipeW, nil
 		eg.Go(func() error {
 			defer pipeR.Close()
 			err := dockerutil.LoadDockerTar(childCtx, b.opt.ContainerFrontend, pipeR)
