@@ -31,6 +31,7 @@ func (siwi *saveImageWaitItem) SetDoSave() {
 	siwi.mu.Lock()
 	defer siwi.mu.Unlock()
 	if siwi.si.DockerTag != "" {
+		siwi.c.opt.Console.Printf("INGWAR: SetDoSave localExport for %s\n", siwi.si.DockerTag)
 		siwi.localExport = true
 	}
 }
