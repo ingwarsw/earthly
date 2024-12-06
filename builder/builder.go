@@ -592,6 +592,7 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 		return b.tempEarthlyOutDir()
 	}
 	onPull := func(childCtx context.Context, imagesToPull []string, resp map[string]string) error {
+		b.opt.Console.Printf("IMGWAR: onPull %v resp %v\n", imagesToPull, resp)
 		if b.opt.LocalRegistryAddr == "" {
 			return nil
 		}

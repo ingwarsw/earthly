@@ -1121,6 +1121,7 @@ func (c *Converter) PopWaitBlock(ctx context.Context) error {
 
 // SaveImage applies the earthly SAVE IMAGE command.
 func (c *Converter) SaveImage(ctx context.Context, imageNames []string, hasPushFlag bool, insecurePush bool, cacheHint bool, cacheFrom []string, noManifestList bool) (retErr error) {
+	c.opt.Console.Printf("INGWAR: SaveImage enter %v\n", imageNames)
 	err := c.checkAllowed(saveImageCmd)
 	if err != nil {
 		return err
@@ -1144,6 +1145,7 @@ func (c *Converter) SaveImage(ctx context.Context, imageNames []string, hasPushF
 		justCacheHint = true
 	}
 	for _, imageName := range imageNames {
+		c.opt.Console.Printf("INGWAR: SaveImage enter one %v c.opt.ForceSaveImage %v\n", imageName, c.opt.ForceSaveImage)
 		if c.mts.Final.RunPush.HasState {
 			if c.ftrs.WaitBlock {
 				panic("RunPush.HasState should never be true when --wait-block is used")
