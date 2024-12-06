@@ -1186,7 +1186,7 @@ func (c *Converter) SaveImage(ctx context.Context, imageNames []string, hasPushF
 				shouldPush := hasPushFlag && si.DockerTag != ""
 				shouldExportLocally := si.DockerTag != "" && c.opt.DoSaves
 				shouldExportLocally = false
-				c.opt.Console.Printf("Skipping local save of image IV %s\n", si.DockerTag)
+				c.opt.Console.Printf("INGWAR: Skipping local save of image IV %s\n", si.DockerTag)
 
 				waitItem := newSaveImage(si, c, shouldPush, shouldExportLocally)
 				c.waitBlock().AddItem(waitItem)
