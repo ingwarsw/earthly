@@ -557,7 +557,7 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 		return nil
 	}
 	onImage := func(childCtx context.Context, eg *errgroup.Group, imageName, waitFor, manifestKey string) (io.WriteCloser, error) {
-		b.opt.Console.Printf("IMGWAR: OnImage save %v waitFor %v\n", imageName, waitFor)
+		b.opt.Console.Printf("INGWAR: OnImage save %v waitFor %v\n", imageName, waitFor)
 		pipeR, pipeW := io.Pipe()
 		eg.Go(func() error {
 			defer pipeR.Close()
@@ -591,7 +591,7 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 		return b.tempEarthlyOutDir()
 	}
 	onPull := func(childCtx context.Context, imagesToPull []string, resp map[string]string) error {
-		b.opt.Console.Printf("IMGWAR: onPull %v resp %v\n", imagesToPull, resp)
+		b.opt.Console.Printf("INGWAR: onPull %v resp %v\n", imagesToPull, resp)
 		if b.opt.LocalRegistryAddr == "" {
 			return nil
 		}
