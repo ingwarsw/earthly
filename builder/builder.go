@@ -561,10 +561,10 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 		pipeR, pipeW := io.Pipe()
 		eg.Go(func() error {
 			defer pipeR.Close()
-			//err := dockerutil.LoadDockerTar(childCtx, b.opt.ContainerFrontend, pipeR)
-			//if err != nil {
-			//	return errors.Wrapf(err, "load docker tar")
-			//}
+			err := dockerutil.LoadDockerTar(childCtx, b.opt.ContainerFrontend, pipeR)
+			if err != nil {
+				return errors.Wrapf(err, "load docker tar")
+			}
 			if manifestKey == "" {
 				return nil
 			}
@@ -706,8 +706,8 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 				doSave := (sts.GetDoSaves() || saveImage.ForceSave)
 				shouldPush := opt.Push && saveImage.Push && !sts.Target.IsRemote() && saveImage.DockerTag != "" && sts.GetDoPushes()
 				shouldExport := !opt.NoOutput && saveImage.DockerTag != "" && doSave
+				b.opt.Console.Printf("Skipping local save of image III %s %v \n", saveImage.DockerTag, shouldExport)
 				shouldExport = false
-				b.opt.Console.Printf("Skipping local save of image III %s\n", saveImage.DockerTag)
 				if saveImage.SkipBuilder || !shouldPush && !shouldExport {
 					continue
 				}
