@@ -557,15 +557,14 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 		return nil
 	}
 	onImage := func(childCtx context.Context, eg *errgroup.Group, imageName, waitFor, manifestKey string) (io.WriteCloser, error) {
-		b.opt.Console.Printf("OnImage save %v\n", imageName)
+		b.opt.Console.Printf("OnImage save %v waitFor %v\n", imageName, waitFor)
 		pipeR, pipeW := io.Pipe()
-		return pipeW, nil
 		eg.Go(func() error {
 			defer pipeR.Close()
-			err := dockerutil.LoadDockerTar(childCtx, b.opt.ContainerFrontend, pipeR)
-			if err != nil {
-				return errors.Wrapf(err, "load docker tar")
-			}
+			//err := dockerutil.LoadDockerTar(childCtx, b.opt.ContainerFrontend, pipeR)
+			//if err != nil {
+			//	return errors.Wrapf(err, "load docker tar")
+			//}
 			if manifestKey == "" {
 				return nil
 			}
