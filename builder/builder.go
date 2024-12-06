@@ -401,7 +401,7 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 			for _, saveImage := range b.targetPhaseImages(sts) {
 				doSave := (sts.GetDoSaves() || saveImage.ForceSave)
 				shouldExport := !opt.NoOutput && opt.OnlyArtifact == nil && !(opt.OnlyFinalTargetImages && sts != mts.Final) && saveImage.DockerTag != "" && doSave
-				b.opt.Console.Printf("Skipping local save of image %s orig %v\n", saveImage.DockerTag, shouldExport)
+				b.opt.Console.Printf("INGWAR: Skipping local save of image %s orig %v\n", saveImage.DockerTag, shouldExport)
 				shouldExport = false
 
 				shouldPush := opt.Push && saveImage.Push && !sts.Target.IsRemote() && saveImage.DockerTag != "" && sts.GetDoPushes()
@@ -557,7 +557,7 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 		return nil
 	}
 	onImage := func(childCtx context.Context, eg *errgroup.Group, imageName, waitFor, manifestKey string) (io.WriteCloser, error) {
-		b.opt.Console.Printf("OnImage save %v waitFor %v\n", imageName, waitFor)
+		b.opt.Console.Printf("IMGWAR: OnImage save %v waitFor %v\n", imageName, waitFor)
 		pipeR, pipeW := io.Pipe()
 		eg.Go(func() error {
 			defer pipeR.Close()
@@ -682,7 +682,7 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 			doSave := (mts.Final.GetDoSaves() || saveImage.ForceSave)
 			shouldExport := !opt.NoOutput && saveImage.DockerTag != "" && doSave
 			shouldExport = false
-			b.opt.Console.Printf("Skipping local save of image II %s\n", saveImage.DockerTag)
+			b.opt.Console.Printf("INGWAR: Skipping local save of image II %s\n", saveImage.DockerTag)
 
 			shouldPush := opt.Push && saveImage.Push && saveImage.DockerTag != "" && mts.Final.GetDoPushes()
 			if saveImage.SkipBuilder || !shouldPush && !shouldExport {
@@ -695,7 +695,7 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 			if saveImage.Push && !opt.Push {
 				exportCoordinator.AddPushedImageSummary(mts.Final.Target.StringCanonical(), saveImage.DockerTag, b.opt.Console.Salt(), false)
 			}
-			//exportCoordinator.AddLocalOutputSummary(mts.Final.Target.StringCanonical(), saveImage.DockerTag, b.opt.Console.Salt())
+			exportCoordinator.AddLocalOutputSummary(mts.Final.Target.StringCanonical(), saveImage.DockerTag, b.opt.Console.Salt())
 		}
 	} else {
 		// This needs to match with the same index used during output.
@@ -706,7 +706,7 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 				doSave := (sts.GetDoSaves() || saveImage.ForceSave)
 				shouldPush := opt.Push && saveImage.Push && !sts.Target.IsRemote() && saveImage.DockerTag != "" && sts.GetDoPushes()
 				shouldExport := !opt.NoOutput && saveImage.DockerTag != "" && doSave
-				b.opt.Console.Printf("Skipping local save of image III %s %v \n", saveImage.DockerTag, shouldExport)
+				b.opt.Console.Printf("INGWAR: Skipping local save of image III %s %v \n", saveImage.DockerTag, shouldExport)
 				shouldExport = false
 				if saveImage.SkipBuilder || !shouldPush && !shouldExport {
 					continue
@@ -717,7 +717,7 @@ func (b *Builder) convertAndBuild(ctx context.Context, target domain.Target, opt
 				if saveImage.Push && !opt.Push && !sts.Target.IsRemote() {
 					exportCoordinator.AddPushedImageSummary(sts.Target.StringCanonical(), saveImage.DockerTag, sts.ID, false)
 				}
-				//exportCoordinator.AddLocalOutputSummary(sts.Target.StringCanonical(), saveImage.DockerTag, sts.ID)
+				exportCoordinator.AddLocalOutputSummary(sts.Target.StringCanonical(), saveImage.DockerTag, sts.ID)
 			}
 			if sts.GetDoSaves() {
 				for _, saveLocal := range sts.SaveLocals {

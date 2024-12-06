@@ -196,7 +196,7 @@ func (wb *waitBlock) saveImages(ctx context.Context, pushesAllowed, localExports
 		refID++
 
 		if item.localExport {
-			item.c.opt.Console.Printf("Local Exporting image %s\n", item.si.DockerTag)
+			item.c.opt.Console.Printf("INGWAR: Local Exporting image %s\n", item.si.DockerTag)
 			if isMultiPlatform[item.si.DockerTag] {
 				// local docker instance does not support multi-platform images, so we must create a new entry and set it to the platformImgName
 				refPrefix, err := gwCrafter.AddPushImageEntry(ref, refID, platformImgName, false, false, item.si.Image, nil)
